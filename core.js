@@ -1,10 +1,12 @@
 (function(root){
-const states={free:'가능',busy:'불가',maybe:'조율 가능',unknown:'미정'};
+const states={free:'가능',busy:'불가',unknown:'미정'};
 function isoDate(d=new Date()){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(d)}
 function dateAdd(date,n){let d=new Date(date+'T12:00:00+09:00');d.setUTCDate(d.getUTCDate()+n);return isoDate(d)}
 function weekday(date){return new Date(date+'T12:00:00+09:00').getUTCDay()}
 function clock(i){let m=360+i*30;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
-function availability(slots,date,i){return slots[date+':'+i]??slots['w'+weekday(date)+':'+i]??'unknown'}
+function slotState(value){return value==='free'||value==='busy'?value:'unknown'}
+function dateSlots(slots={}){return Object.fromEntries(Object.entries(slots).filter(([key])=>/^\d{4}-\d{2}-\d{2}:(?:[0-9]|[12][0-9]|3[0-5])$/.test(key)).map(([key,value])=>[key,slotState(value)]))}
+function availability(slots,date,i){return slotState(slots[date+':'+i])}
 // A drag has one operation, chosen from its first cell. Re-entering a cell
 // during the same stroke must not toggle it a second time.
 function scheduleStroke(selected,firstState){
@@ -12,7 +14,7 @@ function scheduleStroke(selected,firstState){
  return {state,apply(slots,key){
   if(visited.has(key))return false;visited.add(key);
   const before=slots[key];
-  if(state==='unknown'&&key.startsWith('w'))delete slots[key];else slots[key]=state;
+  slots[key]=state;
   return before!==slots[key];
  }};
 }
@@ -22,11 +24,11 @@ function recommendations({dates,duration,users,slots,bookings}){
  const size=Math.ceil(duration/30),out=[];
  for(const date of dates) for(let start=0;start+size<=36;start++){
   const window={start:date+'T'+clock(start)+':00+09:00',end:clock(start+size)==='24:00'?dateAdd(date,1)+'T00:00:00+09:00':date+'T'+clock(start+size)+':00+09:00'};
-  const counts={free:[],busy:[],maybe:[],unknown:[]};
-  for(const uid of users){let st='free';for(let i=start;i<start+size;i++){let s=availability(slots[uid]||{},date,i);if(s==='busy'){st='busy';break}if(s==='unknown')st='unknown';else if(s==='maybe'&&st==='free')st='maybe'}if(bookings.some(b=>b.users.includes(uid)&&overlaps(window,b)))st='busy';counts[st].push(uid)}
+  const counts={free:[],busy:[],unknown:[]};
+  for(const uid of users){let st='free';for(let i=start;i<start+size;i++){let s=availability(slots[uid]||{},date,i);if(s==='busy'){st='busy';break}if(s==='unknown')st='unknown'}if(bookings.some(b=>b.users.includes(uid)&&overlaps(window,b)))st='busy';counts[st].push(uid)}
   out.push({date,start,end:start+size,...counts,...window});
  }
  return out.sort((a,b)=>a.busy.length-b.busy.length||b.free.length-a.free.length||a.unknown.length-b.unknown.length||new Date(a.start)-new Date(b.start));
 }
-const api={scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
+const api={slotState,dateSlots,scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
