@@ -21,7 +21,7 @@ The agreed flow has no in-app voting: officers discuss and select in Kakao, then
 
 ## Validation
 
-- `node --test core.test.cjs schedule.test.cjs workflow.test.cjs`: 23 tests, including the five-identity lifecycle and regressions.
+- `node --test core.test.cjs schedule.test.cjs workflow.test.cjs`: 24 tests, including the five-identity lifecycle and regressions.
 - `node db.test.cjs`: role restrictions, pending membership, stale revisions, ownership, session lifecycle, booking conflict and RLS assertions.
 - `workflow-fixes.sql`: replace the existing RPC only; no table resets or member edits.
 - Actual multi-account Kakao browser flow and current mobile interaction remain pending separate verification.

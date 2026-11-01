@@ -7,7 +7,7 @@ function harness(){
  const context=vm.createContext({AerockCore:require('./core.js'),location:{search:''},sessionStorage:storage,window:{addEventListener(){}},document,URLSearchParams,structuredClone,console,setTimeout,clearTimeout});
  const source=fs.readFileSync(__dirname+'/app.js','utf8').replace(/boot\(\)\.catch\(e=>[\s\S]*$/,'');vm.runInContext(source,context);
  const run=code=>vm.runInContext(code,context);
- run(`me={id:'test'};editing=true;savedSlots={};draftSlots={};var writes=[];var savedSnapshot;var failSave=false;save=async(action,id,payload,revision)=>{if(failSave)throw new Error('network');writes.push({action,id,payload,revision});records=[{id,kind:'availability',payload:structuredClone(payload),revision:1}];savedSnapshot=payload};render=()=>{};toast=()=>{};bindPaint()`);
+ run(`var originalSave=save;me={id:'test'};editing=true;savedSlots={};draftSlots={};var writes=[];var savedSnapshot;var failSave=false;save=async(action,id,payload,revision)=>{if(failSave)throw new Error('network');writes.push({action,id,payload,revision});records=[{id,kind:'availability',payload:structuredClone(payload),revision:1}];savedSnapshot=payload};render=()=>{};toast=()=>{};bindPaint()`);
  return {run,handlers,cell,point:el=>pointed=el,down:el=>handlers.pointerdown({button:0,target:el,pointerId:1,preventDefault(){}}),up:()=>handlers.pointerup(),saveButton,status};
 }
 test('editing cells sends no writes; one save submits the entire checked schedule',async()=>{const h=harness();h.down(h.cell('2026-11-02:0'));h.up();h.down(h.cell('2026-11-03:1'));h.up();assert.equal(h.run('writes.length'),0);assert.equal(h.run('dirty'),true);await h.run('saveSchedule()');assert.equal(h.run('writes.length'),1);assert.deepEqual(JSON.parse(h.run('JSON.stringify(writes[0].payload.slots)')),{'2026-11-02:0':'free','2026-11-03:1':'free'});assert.equal(h.run('dirty'),false);assert.equal(h.run('brush'),'free');assert.equal(h.run('editing'),true)});
@@ -22,4 +22,9 @@ test('stale save merges other-device edits and retries once without losing local
 test('same-cell stale save waits for explicit second save and retains local input',async()=>{
  const h=harness();h.down(h.cell('2026-11-02:0'));h.up();h.run(`load=async()=>{records=[{id:'availability:test',kind:'availability',payload:{slots:{'2026-11-02:0':'busy'}},revision:2}]};save=async()=>{throw new Error('다른 사람이 수정했습니다.')}`);
  await assert.rejects(h.run('saveSchedule()'),/같은 시간 1칸/);assert.equal(h.run('dirty'),true);assert.equal(h.run('availabilityRevision'),2);assert.equal(h.run("draftSlots['2026-11-02:0']"),'free');assert.equal(h.run('scheduleSaving'),false);
+});
+
+test('acknowledged server write is retained if the follow-up read fails',async()=>{
+ const h=harness();h.run(`client={rpc:async()=>({data:{id:'saved-song',kind:'song',payload:{title:'saved'},revision:1},error:null})};load=async()=>{throw new Error('offline')}`);
+ await h.run("originalSave('song','saved-song',{title:'saved'})");assert.equal(h.run("data('saved-song').title"),'saved');
 });
