@@ -9,3 +9,10 @@ test('midnight end and unique confirmed participants',()=>{assert.equal(C.clock(
 test('each active state toggles back to unknown',()=>{for(let state of ['free','busy']){let slots={[day+':0']:state};C.scheduleStroke(state,state).apply(slots,day+':0');assert.equal(slots[day+':0'],'unknown');C.scheduleStroke(state,'unknown').apply(slots,day+':0');assert.equal(slots[day+':0'],state)}});
 test('dragging keeps one operation and never toggles a revisited cell',()=>{let slots={[day+':0']:'busy',[day+':1']:'busy'},stroke=C.scheduleStroke('busy','busy');stroke.apply(slots,day+':0');stroke.apply(slots,day+':1');stroke.apply(slots,day+':0');assert.deepEqual(slots,{[day+':0']:'unknown',[day+':1']:'unknown'});stroke=C.scheduleStroke('free','unknown');stroke.apply(slots,day+':0');stroke.apply(slots,day+':0');assert.equal(slots[day+':0'],'free')});
 test('a legacy maybe participant is never counted as fully available',()=>{let r=C.recommendations({dates:[day],duration:30,users:['u'],slots:{u:{[day+':0']:'maybe'}},bookings:[]}).find(r=>r.start.includes('06:00'));assert.deepEqual(r.free,[]);assert.deepEqual(r.unknown,['u']);assert.equal('maybe' in r,false)});
+test('schedule merge preserves independent changes and reports same-cell conflicts',()=>{
+ const x=C.mergeSchedule({'2099-11-12:0':'unknown'},{'2099-11-12:0':'free'},{'2099-11-12:1':'busy'});assert.deepEqual(x.conflicts,[]);assert.deepEqual(x.merged,{'2099-11-12:0':'free','2099-11-12:1':'busy'});
+ const y=C.mergeSchedule({'2099-11-12:0':'unknown'},{'2099-11-12:0':'free'},{'2099-11-12:0':'busy'});assert.deepEqual(y.conflicts,['2099-11-12:0']);assert.equal(y.merged['2099-11-12:0'],'free');
+});
+test('multiple recommended songs have consecutive non-overlapping rehearsal windows',()=>{
+ const segs=C.rehearsalSegments(['a','b'],'2099-11-12T18:00:00+09:00',60);assert.equal(segs[0].end,segs[1].start);assert.equal(C.overlaps(segs[0],segs[1]),false);assert.equal(new Date(segs[1].end)-new Date(segs[0].start),120*60000);
+});

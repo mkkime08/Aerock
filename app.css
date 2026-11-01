@@ -7,3 +7,5 @@
 @media(max-width:700px){.home-grid{display:flex;flex-direction:column;gap:16px}.home-grid>div{display:contents}.home-grid>div>*{order:3}.home-grid .hero{order:0}.home-grid .next-rehearsal{order:1}.home-grid .card+.card{margin-top:0}.home-grid .section-head{margin-top:10px}}
 
 .slot:disabled{opacity:1;cursor:default}
+
+.schedule-toolbar{position:sticky;top:0;z-index:5;background:var(--panel);padding:10px 0;border-bottom:1px solid var(--line)}
