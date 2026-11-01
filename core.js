@@ -5,6 +5,17 @@ function dateAdd(date,n){let d=new Date(date+'T12:00:00+09:00');d.setUTCDate(d.g
 function weekday(date){return new Date(date+'T12:00:00+09:00').getUTCDay()}
 function clock(i){let m=360+i*30;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
 function availability(slots,date,i){return slots[date+':'+i]??slots['w'+weekday(date)+':'+i]??'unknown'}
+// A drag has one operation, chosen from its first cell. Re-entering a cell
+// during the same stroke must not toggle it a second time.
+function scheduleStroke(selected,firstState){
+ const state=selected===firstState?'unknown':selected,visited=new Set();
+ return {state,apply(slots,key){
+  if(visited.has(key))return false;visited.add(key);
+  const before=slots[key];
+  if(state==='unknown'&&key.startsWith('w'))delete slots[key];else slots[key]=state;
+  return before!==slots[key];
+ }};
+}
 function members(song){return [...new Set((song.entries||[]).filter(e=>e.status==='confirmed').map(e=>e.user_id))]}
 function overlaps(a,b){return new Date(a.start)<new Date(b.end)&&new Date(b.start)<new Date(a.end)}
 function recommendations({dates,duration,users,slots,bookings}){
@@ -17,5 +28,5 @@ function recommendations({dates,duration,users,slots,bookings}){
  }
  return out.sort((a,b)=>a.busy.length-b.busy.length||b.free.length-a.free.length||a.unknown.length-b.unknown.length||new Date(a.start)-new Date(b.start));
 }
-const api={states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
+const api={scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
