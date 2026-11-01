@@ -1,5 +1,6 @@
 (function(root){
 const states={free:'가능',busy:'불가',unknown:'미정'};
+function sessionAuthOptions(key,storage){return /^qa-(president|leader1|member[123])$/.test(key||'')?{auth:{storageKey:'aerock-'+key,storage,persistSession:true}}:{}}
 function isoDate(d=new Date()){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(d)}
 function dateAdd(date,n){let d=new Date(date+'T12:00:00+09:00');d.setUTCDate(d.getUTCDate()+n);return isoDate(d)}
 function weekday(date){return new Date(date+'T12:00:00+09:00').getUTCDay()}
@@ -40,5 +41,5 @@ function recommendations({dates,duration,users,slots,bookings}){
  }
  return out.sort((a,b)=>a.busy.length-b.busy.length||b.free.length-a.free.length||a.unknown.length-b.unknown.length||new Date(a.start)-new Date(b.start));
 }
-const api={mergeSchedule,rehearsalSegments,slotState,dateSlots,scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
+const api={sessionAuthOptions,mergeSchedule,rehearsalSegments,slotState,dateSlots,scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

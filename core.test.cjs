@@ -16,3 +16,6 @@ test('schedule merge preserves independent changes and reports same-cell conflic
 test('multiple recommended songs have consecutive non-overlapping rehearsal windows',()=>{
  const segs=C.rehearsalSegments(['a','b'],'2099-11-12T18:00:00+09:00',60);assert.equal(segs[0].end,segs[1].start);assert.equal(C.overlaps(segs[0],segs[1]),false);assert.equal(new Date(segs[1].end)-new Date(segs[0].start),120*60000);
 });
+test('optional QA session names isolate storage without granting any identity or role',()=>{
+ const storage={};const a=C.sessionAuthOptions('qa-member1',storage),b=C.sessionAuthOptions('qa-member2',storage);assert.notEqual(a.auth.storageKey,b.auth.storageKey);assert.equal(a.auth.storage,storage);assert.deepEqual(C.sessionAuthOptions(null,storage),{});assert.deepEqual(C.sessionAuthOptions('president',storage),{});assert.equal('user'in a.auth,false);assert.equal('role'in a.auth,false);
+});
