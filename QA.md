@@ -25,3 +25,7 @@ The agreed flow has no in-app voting: officers discuss and select in Kakao, then
 - `node db.test.cjs`: role restrictions, pending membership, stale revisions, ownership, session lifecycle, booking conflict and RLS assertions.
 - `workflow-fixes.sql`: replace the existing RPC only; no table resets or member edits.
 - Actual multi-account Kakao browser flow and current mobile interaction remain pending separate verification.
+
+## Live ordinary-member follow-up
+
+QA부원1 authenticated successfully as an active ordinary member. Creating a dedicated QA freeform song and joining its lead guitar part persisted to the server. A button without an explicit type also submitted the display-only song dialog, briefly showing `submit is not a function` while the mutation succeeded. Fix: explicit button types, prevent the default action for delegated action buttons, and ignore submit events when no submit callback exists. Added `modal.test.cjs`. Actual remaining-account and timetable verification continues separately.
