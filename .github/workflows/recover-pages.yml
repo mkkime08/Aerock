@@ -1,0 +1,48 @@
+name: Recover stalled Pages deployment
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recover-pages.yml']
+  workflow_dispatch:
+
+# Same deployment permission used by the existing Pages workflow.
+# No stored secret or access token is created.
+permissions:
+  pages: write
+
+concurrency:
+  group: recover-stalled-pages
+  cancel-in-progress: false
+
+jobs:
+  cancel-stalled-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only the previous deployment blocking new releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_API: ${{ github.api_url }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          node <<'NODE'
+          const target = 'a205c29239340623dfc44ba8c3c161533444b8af';
+          const headers = {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'X-GitHub-Api-Version': '2026-03-10'
+          };
+          (async () => {
+            const base = `${process.env.GH_API}/repos/${process.env.GH_REPO}/pages/deployments/${target}`;
+            const response = await fetch(`${base}/cancel`, {method: 'POST', headers});
+            console.log(`Cancel previous deployment: HTTP ${response.status}`);
+            if (response.status !== 204) {
+              console.error('GitHub did not confirm cancellation. No other deployment was changed.');
+              process.exitCode = 1;
+            }
+          })().catch(error => {
+            console.error(error.name);
+            process.exitCode = 1;
+          });
+          NODE
