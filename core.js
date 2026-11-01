@@ -1,0 +1,21 @@
+(function(root){
+const states={free:'가능',busy:'불가',maybe:'조율 가능',unknown:'미정'};
+function isoDate(d=new Date()){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(d)}
+function dateAdd(date,n){let d=new Date(date+'T12:00:00+09:00');d.setUTCDate(d.getUTCDate()+n);return isoDate(d)}
+function weekday(date){return new Date(date+'T12:00:00+09:00').getUTCDay()}
+function clock(i){let m=360+i*30;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+function availability(slots,date,i){return slots[date+':'+i]??slots['w'+weekday(date)+':'+i]??'unknown'}
+function members(song){return [...new Set((song.entries||[]).filter(e=>e.status==='confirmed').map(e=>e.user_id))]}
+function overlaps(a,b){return new Date(a.start)<new Date(b.end)&&new Date(b.start)<new Date(a.end)}
+function recommendations({dates,duration,users,slots,bookings}){
+ const size=Math.ceil(duration/30),out=[];
+ for(const date of dates) for(let start=0;start+size<=36;start++){
+  const window={start:date+'T'+clock(start)+':00+09:00',end:clock(start+size)==='24:00'?dateAdd(date,1)+'T00:00:00+09:00':date+'T'+clock(start+size)+':00+09:00'};
+  const counts={free:[],busy:[],maybe:[],unknown:[]};
+  for(const uid of users){let st='free';for(let i=start;i<start+size;i++){let s=availability(slots[uid]||{},date,i);if(s==='busy'){st='busy';break}if(s==='unknown')st='unknown';else if(s==='maybe'&&st==='free')st='maybe'}if(bookings.some(b=>b.users.includes(uid)&&overlaps(window,b)))st='busy';counts[st].push(uid)}
+  out.push({date,start,end:start+size,...counts,...window});
+ }
+ return out.sort((a,b)=>a.busy.length-b.busy.length||b.free.length-a.free.length||a.unknown.length-b.unknown.length||new Date(a.start)-new Date(b.start));
+}
+const api={states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
