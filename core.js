@@ -18,6 +18,16 @@ function scheduleStroke(selected,firstState){
   return before!==slots[key];
  }};
 }
+function mergeSchedule(base,local,remote){
+ base=dateSlots(base);local=dateSlots(local);remote=dateSlots(remote);
+ const merged={...remote},conflicts=[];
+ for(const key of new Set([...Object.keys(base),...Object.keys(local)])){
+  const b=slotState(base[key]),l=slotState(local[key]),r=slotState(remote[key]);
+  if(l!==b){if(r!==b&&r!==l)conflicts.push(key);merged[key]=l}
+ }
+ return {merged,conflicts};
+}
+function rehearsalSegments(ids,start,minutes){return ids.map((song_id,i)=>({song_id,start:new Date(new Date(start).getTime()+i*minutes*60000).toISOString(),end:new Date(new Date(start).getTime()+(i+1)*minutes*60000).toISOString(),room:''}))}
 function members(song){return [...new Set((song.entries||[]).filter(e=>e.status==='confirmed').map(e=>e.user_id))]}
 function overlaps(a,b){return new Date(a.start)<new Date(b.end)&&new Date(b.start)<new Date(a.end)}
 function recommendations({dates,duration,users,slots,bookings}){
@@ -30,5 +40,5 @@ function recommendations({dates,duration,users,slots,bookings}){
  }
  return out.sort((a,b)=>a.busy.length-b.busy.length||b.free.length-a.free.length||a.unknown.length-b.unknown.length||new Date(a.start)-new Date(b.start));
 }
-const api={slotState,dateSlots,scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
+const api={mergeSchedule,rehearsalSegments,slotState,dateSlots,scheduleStroke,states,isoDate,dateAdd,weekday,clock,availability,members,overlaps,recommendations};root.AerockCore=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

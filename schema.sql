@@ -43,6 +43,7 @@ begin
  end if;
  -- Lock the target even when it does not exist yet (duplicate freeform joins).
  perform pg_advisory_xact_lock(hashtextextended(p_id,0));
+ if p_action in ('join','withdraw','entry','rehearsal') then perform pg_advisory_xact_lock(hashtextextended('aerock-v2-rehearsals',0)); end if;
  select * into old from public.aerock_v2 where id=p_id for update;
  if old.id is not null and p_revision is distinct from old.revision then raise exception '다른 사람이 수정했습니다. 새로고침 후 다시 시도하세요'; end if;
  if p_action='event' then
@@ -67,9 +68,9 @@ begin
   if (select count(*) from jsonb_array_elements_text(p_data->'parts'))<>(select count(distinct x) from jsonb_array_elements_text(p_data->'parts') x) then raise exception '중복 파트'; end if;
   entries='[]'::jsonb;
   if coalesce(p_data->>'source_id','')<>'' then
-   select * into related from public.aerock_v2 where id=p_data->>'source_id' and kind='song' and coalesce(payload->>'event_id','')='';
+   select * into related from public.aerock_v2 where id=p_data->>'source_id' and kind='song' and coalesce(payload->>'event_id','')='' and not coalesce((payload->>'deleted')::boolean,false);
    if related.id is null then raise exception '프리폼 곡을 찾을 수 없습니다'; end if;
-   select coalesce(jsonb_agg(x || '{"status":"pending"}'::jsonb),'[]') into entries from jsonb_array_elements(related.payload->'entries') x;
+   select coalesce(jsonb_agg(x || '{"status":"pending"}'::jsonb),'[]') into entries from jsonb_array_elements(related.payload->'entries') x where p_data->'parts' ? (x->>'part');
   end if;
   obj=(p_data-'source_id') || jsonb_build_object('entries',entries,'manager_id',null,'status','모집 중','recruit_open',false);
   kind_name='song';
@@ -114,9 +115,22 @@ begin
    state_name=case when p_action='join' then case when coalesce(obj->>'event_id','')='' then 'confirmed' else 'pending' end else p_data->>'status' end;
    if p_action<>'withdraw' and coalesce(state_name,'') not in ('confirmed','pending','remove') then raise exception '잘못된 상태'; end if;
    if state_name='confirmed' and exists(select 1 from jsonb_array_elements(entries) x where x->>'part'=part and x->>'status'='confirmed' and x->>'user_id'<>uid) then raise exception '이미 채워진 파트입니다. 기존 참여자를 먼저 해제하세요'; end if;
+   if state_name='confirmed' and exists(
+    select 1 from public.aerock_v2 ar,jsonb_array_elements(ar.payload->'segments') with ordinality a(x,n),
+    public.aerock_v2 br,jsonb_array_elements(br.payload->'segments') with ordinality b(x,n)
+    where ar.kind='rehearsal' and br.kind='rehearsal' and ar.payload->>'status'='예약 완료' and br.payload->>'status'='예약 완료'
+    and a.x->>'song_id'=p_id and (ar.id<>br.id or a.n<>b.n)
+    and (a.x->>'start')::timestamptz<(b.x->>'end')::timestamptz and (b.x->>'start')::timestamptz<(a.x->>'end')::timestamptz
+    and (b.x->>'song_id'=p_id or exists(select 1 from public.aerock_v2 bs,jsonb_array_elements(bs.payload->'entries') e where bs.id=b.x->>'song_id' and e->>'user_id'=uid and e->>'status'='confirmed'))
+   ) then raise exception '추가할 참여자의 기존 합주 시간이 겹칩니다. 합주 일정을 먼저 조정하세요'; end if;
    select coalesce(jsonb_agg(x),'[]') into entries from jsonb_array_elements(entries) x where not(x->>'user_id'=uid and x->>'part'=part);
    if p_action<>'withdraw' and state_name<>'remove' then entries=entries||jsonb_build_array(jsonb_build_object('user_id',uid,'part',part,'status',state_name)); end if;
    obj=jsonb_set(obj,'{entries}',entries);
+   if entries is distinct from old.payload->'entries' then
+    update public.aerock_v2 r set revision=r.revision+1,updated_at=now()
+    where r.kind='rehearsal' and r.payload->>'status'='예약 완료'
+    and exists(select 1 from jsonb_array_elements(r.payload->'segments') seg where seg->>'song_id'=p_id);
+   end if;
   end if;
  elsif p_action='availability' then
   if p_id<>'availability:'||me::text then raise exception '본인 시간표만 수정할 수 있습니다'; end if;
@@ -126,7 +140,6 @@ begin
   end loop;
   obj=p_data; kind_name='availability';
  elsif p_action='rehearsal' then
-  perform pg_advisory_xact_lock(hashtextextended('aerock-v2-rehearsals',0));
   if not (chair or leader) then raise exception '합주부장 권한이 필요합니다'; end if;
   if old.id is not null and (old.kind<>'rehearsal' or not(chair or old.owner_id=me)) then raise exception '본인이 등록한 합주만 수정할 수 있습니다'; end if;
   if jsonb_typeof(p_data->'segments') is distinct from 'array' then raise exception '합주 구간 오류'; end if;
@@ -138,6 +151,11 @@ begin
    if (item->>'start')::timestamptz >= (item->>'end')::timestamptz then raise exception '종료 시간은 시작 이후여야 합니다'; end if;
    if item->>'start' is null or item->>'end' is null or length(trim(coalesce(item->>'room','')))=0 then raise exception '시간과 방을 입력하세요'; end if;
   end loop;
+  if p_data->>'status'='예약 완료' and exists(
+   select 1 from jsonb_array_elements(p_data->'segments') with ordinality a(x,n),jsonb_array_elements(p_data->'segments') with ordinality b(x,n)
+   where a.n<b.n and a.x->>'room'=b.x->>'room'
+   and (a.x->>'start')::timestamptz<(b.x->>'end')::timestamptz and (b.x->>'start')::timestamptz<(a.x->>'end')::timestamptz
+  ) then raise exception '같은 합주실 방의 곡별 시간이 겹칩니다'; end if;
   if p_data->>'status'='예약 완료' and exists(
    select 1 from jsonb_array_elements(p_data->'segments') with ordinality a(x,n),jsonb_array_elements(p_data->'segments') with ordinality b(x,n)
    where a.n<b.n and (a.x->>'start')::timestamptz<(b.x->>'end')::timestamptz and (b.x->>'start')::timestamptz<(a.x->>'end')::timestamptz
@@ -157,6 +175,7 @@ begin
   obj=p_data; kind_name='rehearsal';
  elsif p_action='response' then
   select * into related from public.aerock_v2 where id=p_data->>'rehearsal_id' and kind='rehearsal';
+  if related.payload->>'status'='취소' then raise exception '취소된 합주에는 응답할 수 없습니다'; end if;
   if related.id is null or p_id<>'response:'||related.id||':'||me::text then raise exception '합주 응답 대상 오류'; end if;
   select exists(select 1 from jsonb_array_elements(related.payload->'segments') seg join public.aerock_v2 s on s.id=seg->>'song_id',jsonb_array_elements(s.payload->'entries') e where e->>'user_id'=me::text and e->>'status'='confirmed') into participant;
   if not participant then raise exception '참여자만 응답할 수 있습니다'; end if;

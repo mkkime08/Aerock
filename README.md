@@ -30,3 +30,7 @@
 ## 로컬 미리보기
 
 정적 HTTP 서버로 이 폴더를 제공하고 `/?demo=1`로 접속합니다. 샘플 데이터를 초기화하거나 부원/회장/합주부장 역할을 전환할 수 있습니다. 실제 정보는 시안에 입력하지 마세요.
+
+## Workflow QA update
+
+See `QA.md` for reproduced issues, fixes, and verification limits. `workflow.test.cjs` uses five separate authenticated identities in isolated PostgreSQL. Run with the pinned PGlite dependency above. `workflow-fixes.sql` updates only the existing RPC without resetting production data. Multi-song recommendations now use a per-song duration and consecutive time windows. Timetable revision conflicts preserve independent edits and require another explicit save when the same cell changed on both devices.
